@@ -55,6 +55,7 @@ jobs:
             --location japaneast \
             --template-file infra/main.bicep \
             --parameters infra/parameters/dev.bicepparam \
+            --parameters adminSshPublicKey='${{ secrets.ADMIN_SSH_PUBLIC_KEY }}' \
             --name "$DEPLOY_NAME" \
             --query "{name:name, provisioningState:properties.provisioningState}" \
             -o json

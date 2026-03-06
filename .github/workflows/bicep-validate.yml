@@ -52,6 +52,7 @@ jobs:
             --location japaneast \
             --template-file infra/main.bicep \
             --parameters infra/parameters/dev.bicepparam \
+            --parameters adminSshPublicKey='${{ secrets.ADMIN_SSH_PUBLIC_KEY }}' \
             --no-pretty-print 2>&1)
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
