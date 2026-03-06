@@ -1,0 +1,92 @@
+# =============================================================================
+# prod 環境への手動承認付きデプロイ
+# =============================================================================
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'prod 環境にデプロイしますか？ "yes" と入力してください'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  validate-input:
+    name: 入力検証
+    runs-on: ubuntu-latest
+    steps:
+      - name: 確認チェック
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "yes" ]; then
+            echo "❌ 'yes' と入力してデプロイを確認してください"
+            exit 1
+          fi
+          echo "✅ デプロイ確認済み"
+
+  deploy:
+    name: prod 環境デプロイ
+    needs: validate-input
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: チェックアウト
+        uses: actions/checkout@v4
+
+      - name: Azure ログイン (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep ビルド（構文チェック）
+        run: az bicep build --file infra/main.bicep
+
+      - name: What-If 分析 (prod)
+        run: |
+          echo "## prod What-If 分析" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          az deployment sub what-if \
+            --location japaneast \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            2>&1 | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: prod 環境へデプロイ
+        id: deploy
+        run: |
+          DEPLOY_NAME="prod-$(date +%Y%m%d-%H%M%S)"
+          echo "deployment_name=$DEPLOY_NAME" >> $GITHUB_OUTPUT
+
+          az deployment sub create \
+            --location japaneast \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            --name "$DEPLOY_NAME" \
+            --query "{name:name, provisioningState:properties.provisioningState}" \
+            -o json
+
+      - name: デプロイ結果サマリー
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## prod 環境デプロイ結果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 項目 | 値 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| デプロイ名 | \`${{ steps.deploy.outputs.deployment_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 環境 | prod |" >> $GITHUB_STEP_SUMMARY
+          echo "| リージョン | japaneast |" >> $GITHUB_STEP_SUMMARY
+          echo "| コミット | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| トリガー | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ステータス | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
