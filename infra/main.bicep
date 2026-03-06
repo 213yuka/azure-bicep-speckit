@@ -32,6 +32,7 @@ var tags = {
   environment: environmentName
   managedBy: 'bicep'
   createdDate: '2026-03-06'
+  repository: 'azure-bicep-speckit'
 }
 
 // -----------------------------------------------------------------------------
