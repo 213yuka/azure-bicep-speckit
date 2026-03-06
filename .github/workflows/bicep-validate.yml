@@ -29,6 +29,18 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: 機密情報のマスク設定
+        id: mask
+        run: |
+          # sed用に環境変数へ保存（add-maskの前に行う）
+          echo "MASK_SUB=${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_ENV
+          echo "MASK_TENANT=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_ENV
+          echo "MASK_CLIENT=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_ENV
+          # ログ出力をマスク
+          echo "::add-mask::${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_TENANT_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_CLIENT_ID }}"
+
       - name: Bicep ビルド（構文チェック）
         run: az bicep build --file infra/main.bicep
 
@@ -44,11 +56,15 @@ jobs:
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
-          # 出力を保存（GitHub Actions の制限に合わせて切り詰め）
-          RESULT_TRUNCATED=$(echo "$RESULT" | head -c 60000)
+          # 環境変数を使ってサブスクリプションID等をマスク
+          MASKED_RESULT=$(echo "$RESULT" \
+            | sed "s/${MASK_SUB}/***SUBSCRIPTION***/g" \
+            | sed "s/${MASK_TENANT}/***TENANT***/g" \
+            | sed "s/${MASK_CLIENT}/***CLIENT***/g" \
+            | head -c 60000)
           {
             echo "result<<EOF_WHATIF"
-            echo "$RESULT_TRUNCATED"
+            echo "$MASKED_RESULT"
             echo "EOF_WHATIF"
           } >> $GITHUB_OUTPUT
 
