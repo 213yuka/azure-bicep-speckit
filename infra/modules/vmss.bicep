@@ -73,13 +73,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = {
   properties: {
     overprovision: false
     upgradePolicy: {
-      mode: 'Rolling'
-      rollingUpgradePolicy: {
-        maxBatchInstancePercent: 20
-        maxUnhealthyInstancePercent: 20
-        maxUnhealthyUpgradedInstancePercent: 20
-        pauseTimeBetweenBatches: 'PT5S'
-      }
+      mode: 'Manual'
     }
     singlePlacementGroup: false
     platformFaultDomainCount: 1
