@@ -1,6 +1,10 @@
-// =============================================================================
-// ネットワークモジュール - VNet & サブネット
-// =============================================================================
+// ============================================================================
+// ネットワークモジュール - VNet、サブネット、NSG
+// ============================================================================
+
+// ============================================================================
+// パラメーター定義
+// ============================================================================
 
 @description('デプロイ先のリージョン')
 param location string
@@ -14,25 +18,130 @@ param projectName string
 @description('リソースタグ')
 param tags object
 
-// -----------------------------------------------------------------------------
-// 変数
-// -----------------------------------------------------------------------------
+// ============================================================================
+// 変数定義 - CAF命名規則
+// ============================================================================
 
 var vnetName = 'vnet-${projectName}-${environmentName}-${location}'
-var nsgName = 'nsg-${projectName}-${environmentName}-${location}'
+var nsgAppGwName = 'nsg-appgw-${projectName}-${environmentName}'
+var nsgWebName = 'nsg-web-${projectName}-${environmentName}'
+var nsgPeName = 'nsg-pe-${projectName}-${environmentName}'
+var nsgMgmtName = 'nsg-mgmt-${projectName}-${environmentName}'
 
-// -----------------------------------------------------------------------------
-// NSG (ネットワークセキュリティグループ)
-// -----------------------------------------------------------------------------
+// ============================================================================
+// 変数定義 - アドレス空間
+// ============================================================================
 
-resource nsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
-  name: nsgName
+var vnetAddressPrefix = '10.0.0.0/16'
+var appGwSubnetPrefix = '10.0.1.0/24'
+var webSubnetPrefix = '10.0.2.0/24'
+var peSubnetPrefix = '10.0.3.0/24'
+var mgmtSubnetPrefix = '10.0.4.0/24'
+
+// ============================================================================
+// NSG - Application Gatewayサブネット用
+// ============================================================================
+
+resource nsgAppGw 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: nsgAppGwName
   location: location
   tags: tags
   properties: {
     securityRules: [
       {
-        name: 'DenyAllInbound'
+        name: 'Allow-HTTP-Inbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-HTTPS-Inbound'
+        properties: {
+          priority: 110
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-GatewayManager'
+        properties: {
+          priority: 120
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '65200-65535'
+          sourceAddressPrefix: 'GatewayManager'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-AzureLoadBalancer'
+        properties: {
+          priority: 130
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '*'
+          sourceAddressPrefix: 'AzureLoadBalancer'
+          destinationAddressPrefix: '*'
+        }
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// NSG - Webサーバーサブネット用
+// ============================================================================
+
+resource nsgWeb 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: nsgWebName
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'Allow-HTTP-From-AppGw'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: appGwSubnetPrefix
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-HTTPS-From-AppGw'
+        properties: {
+          priority: 110
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: appGwSubnetPrefix
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Deny-All-Inbound'
         properties: {
           priority: 4096
           direction: 'Inbound'
@@ -48,9 +157,35 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
   }
 }
 
-// -----------------------------------------------------------------------------
-// VNet (仮想ネットワーク)
-// -----------------------------------------------------------------------------
+// ============================================================================
+// NSG - プライベートエンドポイントサブネット用
+// ============================================================================
+
+resource nsgPe 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: nsgPeName
+  location: location
+  tags: tags
+  properties: {
+    securityRules: []
+  }
+}
+
+// ============================================================================
+// NSG - 管理サブネット用
+// ============================================================================
+
+resource nsgMgmt 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: nsgMgmtName
+  location: location
+  tags: tags
+  properties: {
+    securityRules: []
+  }
+}
+
+// ============================================================================
+// 仮想ネットワーク・サブネット定義
+// ============================================================================
 
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: vnetName
@@ -59,39 +194,58 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   properties: {
     addressSpace: {
       addressPrefixes: [
-        '10.0.0.0/16'
+        vnetAddressPrefix
       ]
     }
     subnets: [
       {
-        name: 'snet-default'
+        name: 'snet-appgw'
         properties: {
-          addressPrefix: '10.0.1.0/24'
+          addressPrefix: appGwSubnetPrefix
           networkSecurityGroup: {
-            id: nsg.id
+            id: nsgAppGw.id
+          }
+        }
+      }
+      {
+        name: 'snet-web'
+        properties: {
+          addressPrefix: webSubnetPrefix
+          networkSecurityGroup: {
+            id: nsgWeb.id
+          }
+        }
+      }
+      {
+        name: 'snet-pe'
+        properties: {
+          addressPrefix: peSubnetPrefix
+          networkSecurityGroup: {
+            id: nsgPe.id
           }
           privateEndpointNetworkPolicies: 'Disabled'
         }
       }
       {
-        name: 'snet-app'
+        name: 'snet-mgmt'
         properties: {
-          addressPrefix: '10.0.2.0/24'
+          addressPrefix: mgmtSubnetPrefix
           networkSecurityGroup: {
-            id: nsg.id
+            id: nsgMgmt.id
           }
-          delegations: []
         }
       }
     ]
   }
 }
 
-// -----------------------------------------------------------------------------
-// 出力
-// -----------------------------------------------------------------------------
+// ============================================================================
+// 出力定義
+// ============================================================================
 
 output vnetName string = vnet.name
 output vnetId string = vnet.id
-output defaultSubnetId string = vnet.properties.subnets[0].id
-output appSubnetId string = vnet.properties.subnets[1].id
+output appGatewaySubnetId string = vnet.properties.subnets[0].id
+output webSubnetId string = vnet.properties.subnets[1].id
+output privateEndpointSubnetId string = vnet.properties.subnets[2].id
+output mgmtSubnetId string = vnet.properties.subnets[3].id

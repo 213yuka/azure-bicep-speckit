@@ -1,6 +1,10 @@
-// =============================================================================
-// Key Vault モジュール
-// =============================================================================
+// ============================================================================
+// Key Vaultモジュール（プライベートエンドポイント付き）
+// ============================================================================
+
+// ============================================================================
+// パラメーター定義
+// ============================================================================
 
 @description('デプロイ先のリージョン')
 param location string
@@ -14,22 +18,24 @@ param projectName string
 @description('リソースタグ')
 param tags object
 
-@description('Private Endpoint用サブネットID')
+@description('プライベートエンドポイントを配置するサブネットID')
 param subnetId string
 
-// -----------------------------------------------------------------------------
-// 変数
-// -----------------------------------------------------------------------------
+@description('仮想ネットワークID（プライベートDNSゾーンリンク用）')
+param vnetId string
 
-// Key Vault名は英数字とハイフンのみ、3-24文字
-var keyVaultName = 'kv-${projectName}-${environmentName}-${uniqueString(resourceGroup().id)}'
+// ============================================================================
+// 変数定義 - CAF命名規則
+// ============================================================================
 
-// -----------------------------------------------------------------------------
-// Key Vault
-// -----------------------------------------------------------------------------
+var keyVaultName = 'kv-${projectName}-${environmentName}-${take(uniqueString(resourceGroup().id), 6)}'
+
+// ============================================================================
+// Key Vault - RBAC認証 / ソフトデリート90日 / パージ保護有効
+// ============================================================================
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: take(keyVaultName, 24)
+  name: keyVaultName
   location: location
   tags: tags
   properties: {
@@ -49,12 +55,39 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Private Endpoint
-// -----------------------------------------------------------------------------
+// ============================================================================
+// プライベートDNSゾーン - Vault
+// ============================================================================
 
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
-  name: 'pe-${keyVault.name}-vault'
+resource privateDnsZoneVault 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+  tags: tags
+}
+
+// ============================================================================
+// プライベートDNSゾーン - VNetリンク
+// ============================================================================
+
+resource privateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: privateDnsZoneVault
+  name: 'link-vault-${projectName}-${environmentName}'
+  location: 'global'
+  tags: tags
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: vnetId
+    }
+  }
+}
+
+// ============================================================================
+// プライベートエンドポイント - Vault
+// ============================================================================
+
+resource keyVaultPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
+  name: 'pe-kv-${projectName}-${environmentName}'
   location: location
   tags: tags
   properties: {
@@ -63,7 +96,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
     }
     privateLinkServiceConnections: [
       {
-        name: 'plsc-${keyVault.name}-vault'
+        name: 'psc-kv-${projectName}-${environmentName}'
         properties: {
           privateLinkServiceId: keyVault.id
           groupIds: [
@@ -75,9 +108,28 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
   }
 }
 
-// -----------------------------------------------------------------------------
-// 出力
-// -----------------------------------------------------------------------------
+// ============================================================================
+// プライベートDNSゾーングループ
+// ============================================================================
+
+resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = {
+  parent: keyVaultPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'config-vault'
+        properties: {
+          privateDnsZoneId: privateDnsZoneVault.id
+        }
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// 出力定義
+// ============================================================================
 
 output keyVaultName string = keyVault.name
 output keyVaultId string = keyVault.id

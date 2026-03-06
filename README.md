@@ -1,49 +1,60 @@
 # Azure IaC Handson with SpecKit
 
-SpecKit（仕様駆動開発）を活用した Azure Infrastructure as Code (Bicep) のハンズオンプロジェクトです。
+CAF / WAF 準拠の冗長 Web サーバーアーキテクチャを Azure Bicep + SpecKit（仕様駆動開発）で構築するハンズオンプロジェクトです。
 
 ---
 
-## 📐 dev 環境アーキテクチャ（Bicep 管理）
+## アーキテクチャ
 
 > Azure Architecture Icons 使用 ([ガイドライン](https://learn.microsoft.com/en-us/azure/architecture/icons/))
 
 <img src="docs/images/architecture-dev.png" alt="dev 環境アーキテクチャ" width="100%">
 
-### Bicep 管理リソース一覧（8リソース）
+### リソース一覧
 
-| リソース | 種別 (MS略称) | セキュリティ |
-|---|---|---|
-| `nsg-handson-dev-japaneast` | Network Security Group (`nsg`) | DenyAllInbound |
-| `vnet-handson-dev-japaneast` | Virtual Network (`vnet`) | 2サブネット, NSG適用 |
-| `sthandsondev...` | Storage Account (`st`) | TLS 1.2, Public Deny, PE付き |
-| `kv-handson-dev-...` | Key Vault (`kv`) | RBAC認証, SoftDelete, PE付き |
-| `pe-st*-blob` | Private Endpoint (`pep`) | Blob → snet-default |
-| `pe-kv*-vault` | Private Endpoint (`pep`) | Vault → snet-default |
-| PE NIC × 2 | Network Interface (`nic`) | PE用 |
-
-> 命名規則は [MS Learn CAF Resource Abbreviations](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations) に準拠
+| リソース | CAF略称 | 用途 | セキュリティ |
+|---|---|---|---|
+| Application Gateway v2 | `agw` | L7 LB + WAF (OWASP 3.2 Prevention) | Public IP, Autoscale 2-10 |
+| VMSS (Ubuntu 22.04 + nginx) | `vmss` | Web サーバー (Zone 1/2/3) | SSH Key, Managed ID |
+| VNet (10.0.0.0/16) | `vnet` | 4サブネット分離 | NSG per subnet |
+| NSG x4 | `nsg` | サブネットごとのアクセス制御 | DenyAllInbound (Web) |
+| Storage Account | `st` | 診断ログ・ブート診断 | TLS 1.2, Public Deny, PE |
+| Key Vault | `kv` | TLS証明書・シークレット | RBAC, SoftDelete, PE |
+| Log Analytics | `log` | 統合監視・ログ集約 | 30日保持 |
+| Private Endpoint x2 | `pep` | Storage Blob / Key Vault | snet-pe 経由 |
 
 ---
 
-## ✅ セキュリティチェック
+## WAF 5つの柱への対応
+
+| 柱 | 対応 |
+|---|---|
+| **信頼性** | VMSS 可用性ゾーン分散 (Zone 1/2/3), AppGW オートスケール |
+| **セキュリティ** | WAF (OWASP 3.2), NSG, Private Endpoint, RBAC, SSH Key Only, ID マスク |
+| **コスト最適化** | dev: B2s x2, prod: B2ms x3, オートスケール |
+| **オペレーショナルエクセレンス** | IaC (Bicep), CI/CD (GitHub Actions), Log Analytics |
+| **パフォーマンス効率** | L7 LB, ゾーン分散, VMSS スケールアウト |
+
+---
+
+## セキュリティチェック
 
 | チェック項目 | 結果 |
 |---|---|
-| NSG デフォルト DenyAllInbound | ✅ |
-| Storage TLS 1.2 強制 | ✅ |
-| Storage パブリックアクセス無効 | ✅ |
-| Storage ネットワーク Deny + Private Endpoint | ✅ |
-| Key Vault RBAC 認証 | ✅ |
-| Key Vault Soft Delete (90日) + Purge Protection | ✅ |
-| Key Vault ネットワーク Deny + Private Endpoint | ✅ |
-| 全リソースにタグ付与 | ✅ |
-| CI/CD で Azure ID マスク (二重防御) | ✅ |
+| WAF OWASP 3.2 Prevention モード | ✅ |
+| NSG per subnet | ✅ |
+| Web サブネット: AppGW からのみ許可 | ✅ |
+| Storage/KV に Private Endpoint | ✅ |
+| Key Vault RBAC + SoftDelete + Purge Protection | ✅ |
+| Storage TLS 1.2 + Public Deny | ✅ |
+| VMSS SSH Key Only (パスワード禁止) | ✅ |
+| VMSS System-Assigned Managed Identity | ✅ |
+| CI/CD Azure ID 二重マスク | ✅ |
 | OIDC 認証 (長期クレデンシャルなし) | ✅ |
 
 ---
 
-## 🔄 CI/CD パイプライン
+## CI/CD パイプライン
 
 | ワークフロー | トリガー | 環境 | 動作 |
 |---|---|---|---|
@@ -51,84 +62,70 @@ SpecKit（仕様駆動開発）を活用した Azure Infrastructure as Code (Bic
 | `deploy-dev` | main push (`infra/**`) | dev (自動) | dev 環境へ自動デプロイ |
 | `deploy-prod` | 手動トリガー | prod (承認必須) | What-If → 承認 → prod デプロイ |
 
-- 認証: **OIDC フェデレーション**（長期シークレットなし）
-- マスク: `::add-mask::` + `sed` による **二重防御**（パブリックリポジトリ対応）
-- 並行制御: `concurrency` グループで同一環境のデプロイを直列化
-
 ---
 
-## 📁 プロジェクト構成
+## プロジェクト構成
 
 ```
 handson-speckit/
-├── infra/                          # Bicep IaC ファイル
-│   ├── main.bicep                  # メインテンプレート（サブスクリプションスコープ）
-│   ├── modules/                    # Bicep モジュール
-│   │   ├── network.bicep           # VNet / サブネット / NSG
-│   │   ├── storage.bicep           # ストレージアカウント + Private Endpoint
-│   │   └── keyvault.bicep          # Key Vault + Private Endpoint
-│   └── parameters/                 # 環境別パラメータ
-│       ├── dev.bicepparam          # 開発環境
-│       └── prod.bicepparam         # 本番環境
+├── infra/
+│   ├── main.bicep                     # メインテンプレート
+│   ├── modules/
+│   │   ├── network.bicep              # VNet + 4サブネット + NSG x4
+│   │   ├── vmss.bicep                 # VMSS (Ubuntu + nginx, Zone 1/2/3)
+│   │   ├── appgateway.bicep           # Application Gateway v2 + WAF
+│   │   ├── log-analytics.bicep        # Log Analytics ワークスペース
+│   │   ├── storage.bicep              # Storage Account + PE
+│   │   └── keyvault.bicep             # Key Vault + PE
+│   └── parameters/
+│       ├── dev.bicepparam             # dev: B2s x2
+│       └── prod.bicepparam            # prod: B2ms x3
 ├── .github/
-│   ├── workflows/                  # GitHub Actions CI/CD
-│   │   ├── bicep-validate.yml      # PR バリデーション
-│   │   ├── deploy-dev.yml          # dev 自動デプロイ
-│   │   └── deploy-prod.yml         # prod 承認付きデプロイ
-│   ├── agents/                     # SpecKit エージェント（日本語）
-│   └── prompts/                    # SpecKit プロンプト
-├── specs/                          # SpecKit 仕様
-│   ├── 001-azure-foundation/       # Azure 基盤仕様
-│   └── 001-github-actions-deploy/  # CI/CD パイプライン仕様
-├── scripts/deploy.ps1              # ローカルデプロイスクリプト
-├── .specify/                       # SpecKit 設定・テンプレート
+│   ├── workflows/                     # GitHub Actions CI/CD
+│   ├── agents/                        # SpecKit エージェント (日本語)
+│   └── prompts/                       # SpecKit プロンプト
+├── specs/
+│   └── 001-web-server-foundation/     # 冗長 Web サーバー仕様
+├── scripts/deploy.ps1                 # ローカルデプロイスクリプト
+├── .specify/                          # SpecKit 設定
 └── .gitignore
 ```
 
 ---
 
-## 🚀 クイックスタート
+## クイックスタート
 
 ### 前提条件
 
-- Azure CLI (`az`) + Bicep
-- SpecKit CLI (`specify`) — `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`
-- Python 3.12+
+- Azure CLI + Bicep
+- SpecKit CLI (`uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`)
 
-### ローカルデプロイ
+### デプロイ
 
 ```powershell
 # バリデーション
 .\scripts\deploy.ps1 -Environment dev -Validate
 
-# What-If 分析
+# What-If
 .\scripts\deploy.ps1 -Environment dev -WhatIf
 
 # デプロイ
 .\scripts\deploy.ps1 -Environment dev
 ```
 
-### SpecKit ワークフロー
-
-```
-/speckit.specify  → 仕様作成
-/speckit.clarify  → 曖昧さ解消
-/speckit.plan     → 技術計画
-/speckit.tasks    → タスク生成
-/speckit.implement → 実装
-```
-
 ---
 
-## 🏷️ 命名規則
+## 命名規則
 
-[MS Learn CAF](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations) 準拠
+[CAF Resource Abbreviations](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations) 準拠
 
-| リソース種別 | 形式 | 例 |
+| リソース | 形式 | 例 |
 |---|---|---|
 | Resource Group | `rg-{project}-{env}-{region}` | `rg-handson-dev-japaneast` |
 | VNet | `vnet-{project}-{env}-{region}` | `vnet-handson-dev-japaneast` |
-| NSG | `nsg-{project}-{env}-{region}` | `nsg-handson-dev-japaneast` |
+| App Gateway | `agw-{project}-{env}` | `agw-handson-dev` |
+| VMSS | `vmss-{project}-{env}` | `vmss-handson-dev` |
+| Log Analytics | `log-{project}-{env}` | `log-handson-dev` |
 | Storage | `st{project}{env}{unique}` | `sthandsondevxxxx` |
 | Key Vault | `kv-{project}-{env}-{unique}` | `kv-handson-dev-xxxx` |
-| Private Endpoint | `pe-{resource}-{subresource}` | `pe-st*-blob` |
+| Public IP | `pip-agw-{project}-{env}` | `pip-agw-handson-dev` |
