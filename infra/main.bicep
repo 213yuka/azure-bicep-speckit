@@ -141,6 +141,22 @@ module appGateway 'modules/appgateway.bicep' = {
 }
 
 // ============================================================================
+// Azure Bastion モジュール（Basic SKU）
+// ============================================================================
+
+module bastion 'modules/bastion.bicep' = {
+  name: 'deploy-bastion'
+  scope: rg
+  params: {
+    location: location
+    environmentName: environmentName
+    projectName: projectName
+    tags: tags
+    subnetId: network.outputs.bastionSubnetId
+  }
+}
+
+// ============================================================================
 // VMSS Webサーバーモジュール
 // ============================================================================
 

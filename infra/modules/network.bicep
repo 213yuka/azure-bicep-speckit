@@ -26,7 +26,7 @@ var vnetName = 'vnet-${projectName}-${environmentName}-${location}'
 var nsgAppGwName = 'nsg-appgw-${projectName}-${environmentName}'
 var nsgWebName = 'nsg-web-${projectName}-${environmentName}'
 var nsgPeName = 'nsg-pe-${projectName}-${environmentName}'
-var nsgMgmtName = 'nsg-mgmt-${projectName}-${environmentName}'
+var nsgBastionName = 'nsg-bastion-${projectName}-${environmentName}'
 
 // ============================================================================
 // 変数定義 - アドレス空間
@@ -141,6 +141,19 @@ resource nsgWeb 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
         }
       }
       {
+        name: 'Allow-SSH-From-Bastion'
+        properties: {
+          priority: 120
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '22'
+          sourceAddressPrefix: mgmtSubnetPrefix
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
         name: 'Deny-All-Inbound'
         properties: {
           priority: 4096
@@ -171,15 +184,120 @@ resource nsgPe 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
 }
 
 // ============================================================================
-// NSG - 管理サブネット用
+// NSG - Azure Bastionサブネット用
 // ============================================================================
 
-resource nsgMgmt 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
-  name: nsgMgmtName
+resource nsgBastion 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: nsgBastionName
   location: location
   tags: tags
   properties: {
-    securityRules: []
+    securityRules: [
+      {
+        name: 'Allow-HTTPS-Inbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-GatewayManager'
+        properties: {
+          priority: 110
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'GatewayManager'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-AzureLoadBalancer'
+        properties: {
+          priority: 120
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'AzureLoadBalancer'
+          destinationAddressPrefix: '*'
+        }
+      }
+      {
+        name: 'Allow-BastionHostCommunication-Inbound'
+        properties: {
+          priority: 130
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRanges: ['8080', '5701']
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: 'VirtualNetwork'
+        }
+      }
+      {
+        name: 'Allow-SSH-RDP-Outbound'
+        properties: {
+          priority: 100
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRanges: ['22', '3389']
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: 'VirtualNetwork'
+        }
+      }
+      {
+        name: 'Allow-AzureCloud-Outbound'
+        properties: {
+          priority: 110
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: 'AzureCloud'
+        }
+      }
+      {
+        name: 'Allow-BastionHostCommunication-Outbound'
+        properties: {
+          priority: 120
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRanges: ['8080', '5701']
+          sourceAddressPrefix: 'VirtualNetwork'
+          destinationAddressPrefix: 'VirtualNetwork'
+        }
+      }
+      {
+        name: 'Allow-GetSessionInformation'
+        properties: {
+          priority: 130
+          direction: 'Outbound'
+          access: 'Allow'
+          protocol: '*'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: '*'
+          destinationAddressPrefix: 'Internet'
+        }
+      }
+    ]
   }
 }
 
@@ -227,11 +345,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
         }
       }
       {
-        name: 'snet-mgmt'
+        name: 'AzureBastionSubnet'
         properties: {
           addressPrefix: mgmtSubnetPrefix
           networkSecurityGroup: {
-            id: nsgMgmt.id
+            id: nsgBastion.id
           }
         }
       }
@@ -248,4 +366,4 @@ output vnetId string = vnet.id
 output appGatewaySubnetId string = vnet.properties.subnets[0].id
 output webSubnetId string = vnet.properties.subnets[1].id
 output privateEndpointSubnetId string = vnet.properties.subnets[2].id
-output mgmtSubnetId string = vnet.properties.subnets[3].id
+output bastionSubnetId string = vnet.properties.subnets[3].id

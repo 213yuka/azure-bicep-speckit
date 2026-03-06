@@ -21,6 +21,7 @@ CAF / WAF 準拠の冗長 Web サーバーアーキテクチャを Azure Bicep +
 | Storage Account | `st` | 診断ログ・ブート診断 | TLS 1.2, Public Deny, PE |
 | Key Vault | `kv` | TLS証明書・シークレット | RBAC, SoftDelete, PE |
 | Log Analytics | `log` | 統合監視・ログ集約 | 30日保持 |
+| Azure Bastion | `bas` | VM 管理アクセス (SSH over TLS) | Basic SKU, NSG 保護 |
 | Private Endpoint x2 | `pep` | Storage Blob / Key Vault | snet-pe 経由 |
 
 ---
@@ -49,6 +50,7 @@ CAF / WAF 準拠の冗長 Web サーバーアーキテクチャを Azure Bicep +
 | Storage TLS 1.2 + Public Deny | ✅ |
 | VMSS SSH Key Only (パスワード禁止) | ✅ |
 | VMSS System-Assigned Managed Identity | ✅ |
+| Azure Bastion 経由の管理アクセス (Public SSH なし) | ✅ |
 | CI/CD Azure ID 二重マスク | ✅ |
 | OIDC 認証 (長期クレデンシャルなし) | ✅ |
 
@@ -75,6 +77,7 @@ handson-speckit/
 │   │   ├── vmss.bicep                 # VMSS (Ubuntu + nginx, Zone 1/2/3)
 │   │   ├── appgateway.bicep           # Application Gateway v2 + WAF
 │   │   ├── log-analytics.bicep        # Log Analytics ワークスペース
+│   │   ├── bastion.bicep              # Azure Bastion (Basic SKU)
 │   │   ├── storage.bicep              # Storage Account + PE
 │   │   └── keyvault.bicep             # Key Vault + PE
 │   └── parameters/
