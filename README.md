@@ -6,9 +6,9 @@ SpecKit（仕様駆動開発）を活用した Azure Infrastructure as Code (Bic
 
 ## 📐 dev 環境アーキテクチャ（Bicep 管理）
 
-> MS 公式 Azure Architecture Icons 使用 ([ガイドライン](https://learn.microsoft.com/en-us/azure/architecture/icons/))
+> Azure Architecture Icons 使用 ([ガイドライン](https://learn.microsoft.com/en-us/azure/architecture/icons/))
 
-![dev 環境アーキテクチャ](docs/images/architecture-dev.png)
+<img src="docs/images/architecture-dev.png" alt="dev 環境アーキテクチャ" width="100%">
 
 ### Bicep 管理リソース一覧（8リソース）
 
