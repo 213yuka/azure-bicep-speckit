@@ -1,50 +1,42 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Azure IaC Handson Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Infrastructure as Code (IaC) First
+すべてのAzureリソースはBicepコードで定義する。Azure Portalでの手動作成は検証目的のみ許可し、最終的には必ずコード化する。再現性・一貫性を最優先とする。
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. モジュール化
+Bicepモジュールを活用し、リソース定義を再利用可能な単位に分割する。各モジュールは単一責任の原則に従い、独立してデプロイ・テスト可能であること。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. 環境分離
+dev / staging / prod の環境をパラメータファイルで分離する。環境固有の値はパラメータファイルに集約し、Bicepテンプレート本体には環境依存の値をハードコードしない。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. セキュリティ・バイ・デフォルト
+- マネージドIDを優先し、接続文字列やパスワードの直接埋め込みを禁止
+- Key Vaultでシークレットを管理
+- 最小権限の原則（RBAC）を徹底
+- ネットワーク制限（Private Endpoint、NSG等）をデフォルトで適用
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. 命名規則の統一
+Azureリソースの命名は `{リソース種別略称}-{プロジェクト名}-{環境}-{リージョン略称}` の形式に従う。例: `rg-handson-dev-japaneast`, `app-handson-dev-jpe`
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## 技術スタック
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- **IaCツール**: Azure Bicep
+- **デプロイ**: Azure CLI (`az deployment`)
+- **CI/CD**: GitHub Actions（将来的に導入）
+- **ターゲットリージョン**: Japan East（既定）
+- **言語**: Bicep / PowerShell
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## 開発ワークフロー
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+1. SpecKitで仕様を定義（spec → plan → tasks）
+2. Bicepモジュールを作成
+3. What-If (`az deployment group what-if`) で変更を事前確認
+4. デプロイ実行
+5. 検証・テスト
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+この Constitution はプロジェクト全体の判断基準となる。変更には理由の文書化が必要。
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-03-06 | **Last Amended**: 2026-03-06

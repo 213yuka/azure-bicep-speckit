@@ -1,30 +1,33 @@
+````chatagent
 ---
-description: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts.
+description: 既存のタスクを利用可能な設計成果物に基づいて、依存関係順にアクション可能なGitHub Issueに変換する。
 tools: ['github/github-mcp-server/issue_write']
 ---
 
-## User Input
+## ユーザー入力
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+処理を進める前に、ユーザー入力を**必ず**確認してください（空でない場合）。
 
-## Outline
+## 概要
 
-1. Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
-1. From the executed script, extract the path to **tasks**.
-1. Get the Git remote by running:
+1. リポジトリルートから `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` を実行し、FEATURE_DIR と AVAILABLE_DOCS リストを解析。すべてのパスは絶対パスであること。引数にシングルクォートを含む場合はエスケープ構文を使用。
+1. 実行したスクリプトから **tasks** へのパスを抽出。
+1. 以下を実行してGitリモートを取得：
 
 ```bash
 git config --get remote.origin.url
 ```
 
 > [!CAUTION]
-> ONLY PROCEED TO NEXT STEPS IF THE REMOTE IS A GITHUB URL
+> リモートがGitHubのURLである場合のみ次のステップに進むこと
 
-1. For each task in the list, use the GitHub MCP server to create a new issue in the repository that is representative of the Git remote.
+1. リスト内の各タスクについて、GitHub MCPサーバーを使用してGitリモートに対応するリポジトリに新しいIssueを作成。
 
 > [!CAUTION]
-> UNDER NO CIRCUMSTANCES EVER CREATE ISSUES IN REPOSITORIES THAT DO NOT MATCH THE REMOTE URL
+> リモートURLと一致しないリポジトリにIssueを作成することは絶対に禁止
+
+````

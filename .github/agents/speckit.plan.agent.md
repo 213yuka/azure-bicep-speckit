@@ -1,90 +1,93 @@
+````chatagent
 ---
-description: Execute the implementation planning workflow using the plan template to generate design artifacts.
+description: 計画テンプレートを使用した実装計画ワークフローを実行し、設計成果物を生成する。
 handoffs: 
-  - label: Create Tasks
+  - label: タスクを作成
     agent: speckit.tasks
-    prompt: Break the plan into tasks
+    prompt: 計画をタスクに分解してください
     send: true
-  - label: Create Checklist
+  - label: チェックリストを作成
     agent: speckit.checklist
-    prompt: Create a checklist for the following domain...
+    prompt: 以下のドメインのチェックリストを作成してください...
 ---
 
-## User Input
+## ユーザー入力
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+処理を進める前に、ユーザー入力を**必ず**確認してください（空でない場合）。
 
-## Outline
+## 概要
 
-1. **Setup**: Run `.specify/scripts/powershell/setup-plan.ps1 -Json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **セットアップ**：リポジトリルートから `.specify/scripts/powershell/setup-plan.ps1 -Json` を実行し、JSONを解析して FEATURE_SPEC、IMPL_PLAN、SPECS_DIR、BRANCH を取得。引数にシングルクォートを含む場合（例："I'm Groot"）はエスケープ構文を使用：例 'I'\''m Groot'（またはダブルクォートを使用："I'm Groot"）。
 
-2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **コンテキストの読み込み**：FEATURE_SPEC と `.specify/memory/constitution.md` を読み込む。IMPL_PLAN テンプレートを読み込む（既にコピー済み）。
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Phase 1: Update agent context by running the agent script
-   - Re-evaluate Constitution Check post-design
+3. **計画ワークフローの実行**：IMPL_PLAN テンプレートの構造に従って以下を実施：
+   - 技術コンテキストを記入（不明な点は「NEEDS CLARIFICATION」としてマーク）
+   - Constitution チェックセクションをconstitutionから記入
+   - ゲートを評価（違反が正当化されない場合はエラー）
+   - フェーズ0：research.md を生成（すべての NEEDS CLARIFICATION を解決）
+   - フェーズ1：data-model.md、contracts/、quickstart.md を生成
+   - フェーズ1：エージェントスクリプトを実行してエージェントコンテキストを更新
+   - 設計後に Constitution チェックを再評価
 
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+4. **停止して報告**：コマンドはフェーズ2の計画後に終了。ブランチ、IMPL_PLAN のパス、生成された成果物を報告。
 
-## Phases
+## フェーズ
 
-### Phase 0: Outline & Research
+### フェーズ0：概要とリサーチ
 
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
+1. **上記の技術コンテキストから不明点を抽出**：
+   - 各 NEEDS CLARIFICATION → リサーチタスク
+   - 各依存関係 → ベストプラクティスタスク
+   - 各統合 → パターンタスク
 
-2. **Generate and dispatch research agents**:
+2. **リサーチエージェントの生成とディスパッチ**：
 
    ```text
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
+   技術コンテキストの各不明点について：
+     タスク："{不明点} を {機能コンテキスト} のためにリサーチ"
+   各技術選択について：
+     タスク："{ドメイン} における {技術} のベストプラクティスを調査"
    ```
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
+3. **調査結果を `research.md` に集約**（以下の形式）：
+   - 決定：[何を選択したか]
+   - 根拠：[なぜ選択したか]
+   - 検討した代替案：[他に何を評価したか]
 
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+**出力**：すべての NEEDS CLARIFICATION が解決された research.md
 
-### Phase 1: Design & Contracts
+### フェーズ1：設計とコントラクト
 
-**Prerequisites:** `research.md` complete
+**前提条件：** `research.md` が完了していること
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+1. **フィーチャー仕様からエンティティを抽出** → `data-model.md`：
+   - エンティティ名、フィールド、リレーションシップ
+   - 要件からのバリデーションルール
+   - 該当する場合は状態遷移
 
-2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
-   - Identify what interfaces the project exposes to users or other systems
-   - Document the contract format appropriate for the project type
-   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
-   - Skip if project is purely internal (build scripts, one-off tools, etc.)
+2. **インターフェースコントラクトを定義**（プロジェクトが外部インターフェースを持つ場合） → `/contracts/`：
+   - プロジェクトがユーザーや他のシステムに公開するインターフェースを特定
+   - プロジェクトタイプに適したコントラクト形式を文書化
+   - 例：ライブラリの公開API、CLIツールのコマンドスキーマ、Webサービスのエンドポイント、パーサーの文法、アプリケーションのUIコントラクト
+   - プロジェクトが純粋に内部的な場合（ビルドスクリプト、ワンオフツール等）はスキップ
 
-3. **Agent context update**:
-   - Run `.specify/scripts/powershell/update-agent-context.ps1 -AgentType copilot`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
+3. **エージェントコンテキストの更新**：
+   - `.specify/scripts/powershell/update-agent-context.ps1 -AgentType copilot` を実行
+   - これらのスクリプトは使用中のAIエージェントを検出
+   - 適切なエージェント固有のコンテキストファイルを更新
+   - 現在の計画からの新しい技術のみを追加
+   - マーカー間の手動追加を保持
 
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
+**出力**：data-model.md、/contracts/*、quickstart.md、エージェント固有ファイル
 
-## Key rules
+## 主要ルール
 
-- Use absolute paths
-- ERROR on gate failures or unresolved clarifications
+- 絶対パスを使用すること
+- ゲート違反または未解決の明確化がある場合はエラーとすること
+
+````

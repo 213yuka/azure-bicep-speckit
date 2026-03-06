@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Azure
+.azure/
+
+# Environment files
+*.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
