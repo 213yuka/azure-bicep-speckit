@@ -48,6 +48,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: 機密情報のマスク設定
+        run: |
+          echo "::add-mask::${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_TENANT_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_CLIENT_ID }}"
+
       - name: Bicep ビルド（構文チェック）
         run: az bicep build --file infra/main.bicep
 
@@ -59,7 +65,11 @@ jobs:
             --location japaneast \
             --template-file infra/main.bicep \
             --parameters infra/parameters/prod.bicepparam \
-            2>&1 | tee -a $GITHUB_STEP_SUMMARY
+            2>&1 \
+            | sed "s/${{ secrets.AZURE_SUBSCRIPTION_ID }}/***SUBSCRIPTION***/g" \
+            | sed "s/${{ secrets.AZURE_TENANT_ID }}/***TENANT***/g" \
+            | sed "s/${{ secrets.AZURE_CLIENT_ID }}/***CLIENT***/g" \
+            | tee -a $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: prod 環境へデプロイ

@@ -29,6 +29,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: 機密情報のマスク設定
+        run: |
+          echo "::add-mask::${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_TENANT_ID }}"
+          echo "::add-mask::${{ secrets.AZURE_CLIENT_ID }}"
+
       - name: Bicep ビルド（構文チェック）
         run: az bicep build --file infra/main.bicep
 
@@ -44,11 +50,15 @@ jobs:
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
-          # 出力を保存（GitHub Actions の制限に合わせて切り詰め）
-          RESULT_TRUNCATED=$(echo "$RESULT" | head -c 60000)
+          # サブスクリプションID等をマスクして出力を保存
+          MASKED_RESULT=$(echo "$RESULT" \
+            | sed "s/${{ secrets.AZURE_SUBSCRIPTION_ID }}/***SUBSCRIPTION***/g" \
+            | sed "s/${{ secrets.AZURE_TENANT_ID }}/***TENANT***/g" \
+            | sed "s/${{ secrets.AZURE_CLIENT_ID }}/***CLIENT***/g" \
+            | head -c 60000)
           {
             echo "result<<EOF_WHATIF"
-            echo "$RESULT_TRUNCATED"
+            echo "$MASKED_RESULT"
             echo "EOF_WHATIF"
           } >> $GITHUB_OUTPUT
 
