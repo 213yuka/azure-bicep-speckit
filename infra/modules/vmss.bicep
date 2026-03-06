@@ -158,7 +158,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2024-03-01' = {
               typeHandlerVersion: '2.1'
               autoUpgradeMinorVersion: true
               settings: {
-                commandToExecute: 'apt-get update && apt-get install -y nginx && systemctl enable nginx && systemctl start nginx'
+                commandToExecute: 'export DEBIAN_FRONTEND=noninteractive && apt-get update -y && apt-get install -y --fix-missing nginx && systemctl enable nginx && systemctl start nginx'
               }
             }
           }
